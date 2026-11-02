@@ -1,0 +1,45 @@
+// ============================================================================
+// common.proto - message types shared by every DistriLab service.
+// ============================================================================
+syntax = "proto3";
+
+package distrilab;
+
+option java_package = "proto";
+option java_multiple_files = true;
+
+// Network identity of a worker node. Every worker has a unique integer id.
+message NodeInfo {
+  int32 id = 1;
+  string host = 2;   // host/IP that other processes use to reach this node
+  int32 port = 3;    // gRPC port of the worker
+}
+
+// Reference to a node by id only.
+message NodeRef {
+  int32 id = 1;
+}
+
+// Generic acknowledgement.
+message Ack {
+  bool ok = 1;
+  string message = 2;
+}
+
+message Empty {}
+
+// Who is the coordinator, for which term, and what its JAC was when elected.
+message CoordinatorInfo {
+  bool known = 1;          // false if no coordinator is currently known
+  NodeInfo node = 2;
+  int32 term = 3;
+  int32 jac = 4;
+}
+
+// The three job types supported by the cluster.
+enum JobType {
+  JOB_TYPE_UNSPECIFIED = 0;
+  MAX = 1;          // largest value in a list
+  PRIMESUM = 2;     // sum of primes in a range [start, end]
+  PRIMECOUNT = 3;   // number of primes in a list
+}

@@ -1,0 +1,81 @@
+// ============================================================================
+// replication.proto - coordinator state replication.
+//
+// The coordinator (job owner) pushes every job state change to the other
+// workers. If the coordinator crashes, the newly elected coordinator pulls
+// the replicas (FetchState), merges them, and resumes unfinished jobs.
+//
+// Completed subtask results are deterministic, so merging replicas is a
+// simple union of completed subtasks - replicas can never conflict.
+// ============================================================================
+syntax = "proto3";
+
+package distrilab;
+
+import "common.proto";
+
+option java_package = "proto";
+option java_multiple_files = true;
+
+service ReplicationService {
+  // Push state changes (coordinator -> replicas).
+  rpc Replicate(ReplicationBatch) returns (Ack);
+
+  // Pull the full replicated state (new coordinator -> replicas).
+  rpc FetchState(Empty) returns (StateSnapshot);
+}
+
+enum JobStatus {
+  JOB_STATUS_UNSPECIFIED = 0;
+  QUEUED = 1;
+  RUNNING = 2;
+  RECOVERING = 3;
+  COMPLETED = 4;
+  FAILED = 5;
+  CANCELLED = 6;
+}
+
+// Everything needed to recompute a job from scratch.
+message JobSpec {
+  string job_id = 1;
+  string client_id = 2;
+  JobType type = 3;
+  repeated sint64 numbers = 4;
+  int64 range_start = 5;
+  int64 range_end = 6;
+  int32 subtask_count = 7;  // fixed when the job is accepted, so every
+                            // coordinator splits the job identically
+  int64 submitted_at_ms = 8;
+}
+
+message CompletedSubtask {
+  int32 index = 1;
+  string value = 2;
+  int32 worker_id = 3;
+  int64 units = 4;
+}
+
+// One replicated job record (or a delta of one).
+message JobRecord {
+  string job_id = 1;
+  JobSpec spec = 2;                 // may be absent in small deltas
+  NodeInfo owner = 3;               // coordinator currently responsible for the job
+  int32 owner_term = 4;
+  JobStatus status = 5;
+  repeated CompletedSubtask completed = 6;
+  string result = 7;
+  string error = 8;
+  int64 version = 9;
+  int64 finished_at_ms = 10;
+}
+
+message ReplicationBatch {
+  NodeInfo from = 1;
+  int32 term = 2;
+  repeated JobRecord jobs = 3;
+}
+
+message StateSnapshot {
+  NodeInfo from = 1;
+  repeated JobRecord jobs = 2;
+}

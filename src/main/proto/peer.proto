@@ -1,0 +1,57 @@
+// ============================================================================
+// peer.proto - overlay maintenance and failure detection between workers.
+// ============================================================================
+syntax = "proto3";
+
+package distrilab;
+
+import "common.proto";
+
+option java_package = "proto";
+option java_multiple_files = true;
+
+service PeerService {
+  // Create a bidirectional overlay link.
+  rpc AddNeighbour(NodeInfo) returns (NeighbourReply);
+
+  // Heartbeat. Sent by the coordinator to every worker and by every worker to
+  // its overlay neighbours. The reply proves the receiver is alive and tells
+  // the sender the receiver's view (term, JAC, load).
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatReply);
+
+  // Read-only snapshot of a node (used for the client's cluster view).
+  rpc GetStatus(Empty) returns (NodeStatus);
+}
+
+message NeighbourReply {
+  bool accepted = 1;
+  CoordinatorInfo coordinator = 2;  // lets a new worker learn the leader
+}
+
+message HeartbeatRequest {
+  NodeInfo from = 1;
+  bool from_coordinator = 2;       // true when the coordinator is pinging
+  CoordinatorInfo coordinator = 3; // sender's view of the coordinator
+}
+
+message HeartbeatReply {
+  int32 node_id = 1;
+  int32 term = 2;
+  int32 jac = 3;
+  int32 active_subtasks = 4;
+  CoordinatorInfo coordinator = 5;
+  repeated int32 neighbour_ids = 6;
+}
+
+message NodeStatus {
+  NodeInfo node = 1;
+  int32 term = 2;
+  int32 jac = 3;
+  bool is_coordinator = 4;
+  CoordinatorInfo coordinator = 5;
+  repeated int32 neighbour_ids = 6;
+  int32 active_subtasks = 7;
+  int64 completed_subtasks = 8;
+  int32 jobs_in_term = 9;
+  int32 max_jobs_per_term = 10;
+}

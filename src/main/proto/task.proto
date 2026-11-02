@@ -1,0 +1,48 @@
+// ============================================================================
+// task.proto - coordinator -> worker subtask execution (server streaming).
+//
+// The worker streams real progress (units processed / total units) while it
+// computes, and finally streams the result. The coordinator turns these into
+// the progress bars shown on the client.
+// ============================================================================
+syntax = "proto3";
+
+package distrilab;
+
+import "common.proto";
+
+option java_package = "proto";
+option java_multiple_files = true;
+
+service TaskService {
+  rpc Execute(SubtaskRequest) returns (stream SubtaskUpdate);
+}
+
+message SubtaskRequest {
+  string job_id = 1;
+  int32 index = 2;         // subtask number within the job (unique task id = job_id#index)
+  int32 attempt = 3;       // increases every time the subtask is reassigned
+  JobType type = 4;
+  repeated sint64 numbers = 5;  // MAX / PRIMECOUNT slice
+  int64 range_start = 6;        // PRIMESUM range (inclusive)
+  int64 range_end = 7;
+  NodeInfo coordinator = 8;
+}
+
+message SubtaskUpdate {
+  oneof update {
+    SubtaskProgress progress = 1;
+    SubtaskResult result = 2;
+  }
+}
+
+message SubtaskProgress {
+  int64 units_done = 1;
+  int64 units_total = 2;
+}
+
+message SubtaskResult {
+  string value = 1;      // decimal string (prime sums can exceed 64 bits)
+  int64 units = 2;
+  int64 compute_ms = 3;
+}

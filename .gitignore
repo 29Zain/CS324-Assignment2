@@ -1,0 +1,12 @@
+*.class
+*.iml
+*.log
+.DS_Store
+.idea/
+.pids/
+.vscode/
+Thumbs.db
+data/generated_*.csv
+fault-tests-results.txt
+logs/
+target/

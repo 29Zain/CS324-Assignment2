@@ -1,0 +1,68 @@
+// ============================================================================
+// election.proto - Leader Election protocol between workers.
+//
+// Algorithm (echo / wave election over the unstructured overlay):
+//  1. The initiator sends Election to all of its neighbours in parallel.
+//  2. A worker that sees an election_id for the FIRST time forwards it to all
+//     of its other neighbours, waits for their replies, and replies to the
+//     sender with the best candidate in its sub-tree (itself included).
+//  3. A worker that has ALREADY seen the election_id replies duplicate=true
+//     immediately and does not forward it again (no duplicate processing,
+//     no infinite loops on cycles).
+//  4. Best candidate = lowest JAC; ties broken by highest worker id.
+//  5. The initiator floods a Coordinator announcement for the new term.
+// ============================================================================
+syntax = "proto3";
+
+package distrilab;
+
+import "common.proto";
+
+option java_package = "proto";
+option java_multiple_files = true;
+
+service ElectionService {
+  // ELECTION message: propagated through the overlay, returns the best
+  // candidate found in the sub-tree of the receiving worker.
+  rpc Election(ElectionRequest) returns (ElectionReply);
+
+  // COORDINATOR message: flooded through the overlay so every reachable
+  // worker learns the winner of the term.
+  rpc Coordinator(CoordinatorAnnouncement) returns (Ack);
+}
+
+enum ElectionReason {
+  REASON_UNSPECIFIED = 0;
+  STARTUP = 1;            // no coordinator exists yet
+  COORDINATOR_FAILED = 2; // coordinator stopped answering heartbeats
+  TERM_LIMIT = 3;         // coordinator assigned 5 jobs and stepped down
+}
+
+// A worker's bid in the election.
+message Candidate {
+  NodeInfo node = 1;
+  int32 jac = 2;   // Job Allocation Counter of that worker
+}
+
+message ElectionRequest {
+  string election_id = 1;   // unique per election, used for duplicate filtering
+  int32 term = 2;           // the term being elected
+  int32 initiator_id = 3;
+  NodeInfo sender = 4;      // neighbour that forwarded this message
+  ElectionReason reason = 5;
+}
+
+message ElectionReply {
+  bool duplicate = 1;              // receiver had already processed this election
+  Candidate best = 2;              // best candidate in the receiver's sub-tree
+  repeated int32 participants = 3; // workers that were reached in the sub-tree
+  bool rejected = 4;               // receiver still has a live coordinator
+  CoordinatorInfo current = 5;     // ...and this is it
+}
+
+message CoordinatorAnnouncement {
+  string announcement_id = 1;  // duplicate filter for the flood
+  int32 term = 2;
+  Candidate leader = 3;
+  NodeInfo sender = 4;
+}
